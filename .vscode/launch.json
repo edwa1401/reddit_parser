@@ -1,0 +1,13 @@
+{
+    "version": "0.2.0",
+    "configurations": [
+        {
+            "name": "Parser",
+            "type": "python",
+            "request": "launch",
+            "module": "parser",
+            "console": "integratedTerminal",
+            "justMyCode": true
+        }
+    ]
+}
