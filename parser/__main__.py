@@ -1,24 +1,21 @@
 
-from parser.report_processor import create_posts_report, create_comments_report
-from parser.report_processor import current_time_for_dict, create_first_report_data
-from parser.data_parser import create_posts_dict, create_comments_dict
+from parser.config import load
+from parser.data_parser import (
+    RedditClient,
+    ask_subreddit,
+    count_number_of_comments_by_authors,
+    count_number_of_posts_by_authors
+)
 
 
 def main() -> None:
 
-    top_post_authors = create_posts_report(
-        post_data=create_posts_dict(),
-        first_reports_date=create_first_report_data(),
-        current_date=current_time_for_dict(),
-        )
-
-    top_comments_authors = create_comments_report(
-        post_comments=create_comments_dict(),
-        first_reports_date=create_first_report_data(),
-        current_date=current_time_for_dict(),
-        )
-    print(top_post_authors)
-    print(top_comments_authors)
+    report = RedditClient(config=load())
+    report_days = 3
+    reddit = ask_subreddit()
+    posts = report.get_latest_posts(report_days, reddit, True)
+    print(f'Top authors by number of posts: {count_number_of_posts_by_authors(posts)}')
+    print(f'Top authors by number of comments: {count_number_of_comments_by_authors(posts)}')
 
 
 if __name__ == "__main__":

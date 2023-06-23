@@ -1,36 +1,28 @@
-from parser.report_processor import create_first_report_data, current_time_for_dict, create_posts_report, create_comments_report
-from freezegun import freeze_time
 import datetime
-import pandas as pd
+from parser.data_parser import (
+    count_number_of_comments_by_authors,
+    count_number_of_posts_by_authors,
+    report_period
+)
+from random import randint
+
+from faker import Faker
+from freezegun import freeze_time
 
 
 @freeze_time(datetime.datetime(2023, 6, 9, 17, 20, 48, 175067))
-def test__current_time_for_dict__success(current_date):
-    assert current_time_for_dict() == current_date
+def test__report_period__success(first_report_date):
+    assert report_period(3) == first_report_date
 
 
-@freeze_time(datetime.datetime(2023, 6, 9, 17, 20, 48, 175067))
-def test__create_first_report_data__success(first_report_date):
-    assert create_first_report_data() == first_report_date
+def test__count_number_of_posts_by_authors_success(make_posts, make_comments, make_top_posts_authors):
+    top_posts_authors = make_top_posts_authors()
+    assert count_number_of_posts_by_authors(make_posts(make_comments())) == top_posts_authors
 
+# TODO add forking test for comments with faker and rand, add mock test for get_latests_post
 
-def test__create_posts_report_data__success(pandas_posts_report, first_report_date, current_date):
-
-    dict_post_report = {'user1': 2, 'user14': 1, 'user15': 1, 'user5': 1, 'user7': 1}
-    expected_result = f'top ten subreddit posts authors with number of posts\
-        for last three days {dict_post_report}'
-
-    post_report = create_posts_report(pandas_posts_report, first_report_date, current_date)
-
-    assert post_report == expected_result
-
-
-def test__create_comments_report_data__success(pandas_comments_report, first_report_date, current_date):
-
-    dict_comments_report = {'user2': 3, 'user1': 1, 'user14': 1, 'user15': 1, 'user5': 1, 'user7': 1, 'user9': 1}
-    expected_result = f'top ten subreddit commentators with number of comments for last three days\
-     {dict_comments_report}'
-
-    comments_report = create_comments_report(pandas_comments_report, first_report_date, current_date)
-
-    assert comments_report == expected_result
+# def test__count_number_of_comments_by_authors_success(make_posts, make_comments, make_top_comments_authors):
+#     fake = Faker()
+#     comment_author = fake.profile()["username"]
+#     top_comments_authors = make_top_comments_authors()
+#     assert count_number_of_comments_by_authors(make_comments()) == top_comments_authors

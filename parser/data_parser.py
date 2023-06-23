@@ -1,81 +1,90 @@
-import praw
-import prawcore
+from collections import Counter, defaultdict
+from dataclasses import dataclass
+from datetime import datetime, timedelta
+from parser.config import Config
 from typing import Any
-from datetime import datetime
-import pandas as pd
-from config import load
+
+import praw
 
 
 def ask_subreddit() -> str:
-    sub = ""
-    if not sub:
-        sub = input("Введите subreddit ")
-    else:
-        sub = sub
-    return sub
+    return input("Введите subreddit ")
 
 
-def create_request_to_reddit() -> Any:
-    config = load()
+@dataclass
+class Comment:
+    created_at: datetime
+    author: str
 
-    reddit = praw.Reddit(
-        client_id=config.client_id,
-        client_secret=config.client_secret,
-        user_agent=config.user_agent,
-        username=config.username,
-        password=config.password,
+
+@dataclass
+class Post:
+    created_at: datetime
+    author: str
+    post_id: str
+    comments: list[Comment]
+
+
+class RedditClient:
+    def __init__(self, config: Config) -> None:
+        self.reddit = praw.Reddit(
+            client_id=config.client_id,
+            client_secret=config.client_secret,
+            user_agent=config.user_agent,
+            username=config.username,
+            password=config.password,
+            )
+
+    def get_post_comments(self, post_id: str) -> list[Comment]:
+        submission = self.reddit.submission(post_id)
+        submission.comments.replace_more(limit=None)
+        comments = [convert_comments(comment) for comment in submission.comments.list()]
+        return comments
+
+    def get_latest_posts(self, days: int, sub: str, load_comments: bool) -> list[Post]:
+        subreddit = self.reddit.subreddit(sub)
+        posts = [convert_post(submission) for submission in subreddit.top(time_filter="week") if
+                 convert_post(submission).created_at >= report_period(days)]
+        if load_comments:
+            for post in posts:
+                post.comments = self.get_post_comments(post_id=post.post_id)
+        return posts
+
+
+def report_period(days: int) -> datetime:
+    return datetime.now() - timedelta(days)
+
+
+def convert_comments(comment: Any) -> Comment:
+    author = "not_autorised_author" if comment.author.name is None else comment.author.name
+    return Comment(
+        created_at=datetime.fromtimestamp(comment.created_utc),
+        author=author,
+    )
+
+
+def convert_post(submission: Any) -> Post:
+    return Post(
+        created_at=datetime.fromtimestamp(submission.created_utc),
+        author=submission.author.name,
+        post_id=submission.id,
+        comments=[],
+    )
+
+# TODO except prawcore.exceptions.ServerError
+
+
+def count_number_of_posts_by_authors(posts: list[Post]) -> list[tuple[str, int]]:
+    count_of_posts_by_authors = Counter([post.author for post in posts])
+    return count_of_posts_by_authors.most_common(n=20)
+
+
+def count_number_of_comments_by_authors(posts: list[Post]) -> list[tuple[str, int]]:
+    count_of_comments_by_authors: defaultdict[str, int] = defaultdict(int)
+    for post in posts:
+        for comment in post.comments:
+            count_of_comments_by_authors[comment.author] += 1
+    number_of_comments = sorted(
+        count_of_comments_by_authors.items(), key=lambda count: count[1], reverse=True
         )
-    return reddit
-
-
-def create_posts_dict() -> pd.DataFrame:
-
-    sub = ask_subreddit()
-    reddit = create_request_to_reddit()
-    subreddit = reddit.subreddit(sub)
-
-    post_dict: dict[str, list[str | str | datetime]] = {
-        "posts_author": [],
-        "post_id": [],
-        "created_utc": [],
-    }
-    try:
-        for submission in subreddit.top(time_filter="week"):
-            post_dict["posts_author"].append(submission.author.name)
-            post_dict["post_id"].append(submission.id)
-            post_dict["created_utc"].append(datetime.fromtimestamp(submission.created_utc))
-    except prawcore.exceptions.ServerError as error:
-        print(str(error))
-
-    post_data = pd.DataFrame(post_dict)
-
-    return post_data
-
-
-def create_comments_dict() -> pd.DataFrame:
-
-    sub = ask_subreddit()
-    reddit = create_request_to_reddit()
-    subreddit = reddit.subreddit(sub)
-
-    comments_dict: dict[str, list[Any]] = {
-        "comments_author": [],
-        "comment_id": [],
-        "created_utc": [],
-    }
-
-    try:
-        for submission in subreddit.top(time_filter="week"):
-            submission.comments.replace_more(limit=None)
-            for comment in submission.comments.list():
-                if comment.author is None:
-                    comments_dict["comments_author"].append("not_autorised_author")
-                else:
-                    comments_dict["comments_author"].append(comment.author.name)
-                comments_dict["comment_id"].append(comment.id)
-                comments_dict["created_utc"].append(datetime.fromtimestamp(comment.created_utc))
-    except prawcore.exceptions.ServerError as error:
-        print(str(error))
-
-    post_comments = pd.DataFrame(comments_dict)
-    return post_comments
+    return number_of_comments
